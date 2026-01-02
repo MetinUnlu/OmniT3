@@ -1,0 +1,27 @@
+FROM node:20-alpine
+
+RUN apk add --no-cache libc6-compat openssl
+
+WORKDIR /app
+
+# Copy package files
+COPY package.json package-lock.json* ./
+
+# Copy prisma schema BEFORE npm ci (needed for postinstall script)
+COPY prisma ./prisma
+
+# Install dependencies (postinstall will run prisma generate)
+RUN npm ci
+
+# Copy entrypoint for dev
+COPY docker-entrypoint-dev.sh ./
+COPY start-dev.sh ./
+RUN chmod +x docker-entrypoint-dev.sh start-dev.sh
+
+# Copy the rest of the application (source code will be mounted as volume)
+COPY . .
+
+EXPOSE 3000
+
+ENTRYPOINT ["./docker-entrypoint-dev.sh"]
+CMD ["npm", "run", "dev"]

@@ -1,0 +1,341 @@
+// Prisma schema for Production Management System with Better Auth
+// Multi-tenant architecture with company isolation
+
+generator client {
+  provider      = "prisma-client-js"
+  output        = "../generated/prisma"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// USER ROLES & COMPANY MANAGEMENT
+// ============================================================================
+
+enum UserRole {
+  SUPER_USER // Platform admin - access to everything, no company required
+  ADMIN      // Company admin - full company access
+  MEMBER     // Company member - limited access
+}
+
+model Company {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique // URL-friendly identifier
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  users     User[]
+  machines  Machine[]
+  orders    Order[]
+  materials Material[]
+  
+  @@index([slug])
+  @@map("company")
+}
+
+// ============================================================================
+// USER MANAGEMENT
+// ============================================================================
+
+model User {
+  id            String    @id
+  name          String
+  email         String
+  emailVerified Boolean   @default(false)
+  image         String?
+  role          UserRole  @default(MEMBER)
+  
+  // Multi-tenancy (optional for SUPER_USER)
+  companyId     String?
+  company       Company?  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // Auth relations
+  sessions      Session[]
+  accounts      Account[]
+  
+  // Activity relations
+  assignedTasks       Task[]        @relation("AssignedWorker")
+  createdOrders       Order[]       @relation("OrderCreator")
+  taskStatusChanges   TaskHistory[]
+  logisticsUpdates    LogisticsMovement[]
+  
+  @@unique([email])
+  @@index([companyId, role])
+  @@map("user")
+}
+
+// ============================================================================
+// AUTHENTICATION (Better Auth)
+// ============================================================================
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String? //@db.Text
+  userAgent String? //@db.Text
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([token])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String //@db.Text
+  providerId            String //@db.Text
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String? //@db.Text
+  refreshToken          String? //@db.Text
+  idToken               String? //@db.Text
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String? //@db.Text
+  password              String? //@db.Text
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String //@db.Text
+  value      String //@db.Text
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @default(now()) @updatedAt
+
+  @@map("verification")
+}
+
+// ============================================================================
+// PRODUCTION MANAGEMENT - MACHINES
+// ============================================================================
+
+enum MachineStatus {
+  ACTIVE
+  MAINTENANCE
+  BROKEN
+  IDLE
+}
+
+model Machine {
+  id          String        @id @default(cuid())
+  name        String
+  code        String        @unique // Machine identifier (e.g., "CNC-001")
+  type        String        // Machine type (e.g., "CNC", "Lathe", "Mill")
+  status      MachineStatus @default(IDLE)
+  
+  // Multi-tenant
+  companyId   String
+  company     Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  // Relations
+  tasks       Task[]
+  
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  
+  @@index([companyId, status])
+  @@index([code])
+  @@map("machine")
+}
+
+// ============================================================================
+// PRODUCTION MANAGEMENT - MATERIALS
+// ============================================================================
+
+enum MaterialUnit {
+  KG
+  M
+  M2
+  M3
+  PIECE
+  LITER
+}
+
+model Material {
+  id            String       @id @default(cuid())
+  name          String
+  code          String       // Material code (e.g., "ST-001" for steel)
+  unit          MaterialUnit
+  stockQuantity Float        @default(0)
+  minQuantity   Float        @default(0) // Alert threshold
+  
+  // Multi-tenant
+  companyId     String
+  company       Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  // Relations
+  taskMaterials TaskMaterial[]
+  movements     LogisticsMovement[]
+  
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  
+  @@unique([companyId, code])
+  @@index([companyId, stockQuantity])
+  @@map("material")
+}
+
+// ============================================================================
+// PRODUCTION MANAGEMENT - ORDERS & TASKS
+// ============================================================================
+
+enum OrderStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model Order {
+  id              String      @id @default(cuid())
+  orderNumber     String      @unique
+  customerName    String
+  productName     String
+  quantity        Int
+  dueDate         DateTime
+  status          OrderStatus @default(PENDING)
+  notes           String?
+  
+  // Multi-tenant
+  companyId       String
+  company         Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  // Relations
+  createdBy       User        @relation("OrderCreator", fields: [createdById], references: [id])
+  createdById     String
+  tasks           Task[]
+  
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  
+  @@index([companyId, status])
+  @@index([orderNumber])
+  @@map("order")
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  ON_HOLD
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model Task {
+  id              String       @id @default(cuid())
+  name            String
+  description     String?
+  status          TaskStatus   @default(PENDING)
+  priority        TaskPriority @default(MEDIUM)
+  startDate       DateTime?
+  endDate         DateTime?
+  estimatedHours  Float?
+  actualHours     Float?
+  
+  // Relations
+  orderId         String
+  order           Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  
+  machineId       String?
+  machine         Machine?     @relation(fields: [machineId], references: [id])
+  
+  assignedTo      String?
+  assignedWorker  User?        @relation("AssignedWorker", fields: [assignedTo], references: [id])
+  
+  materials       TaskMaterial[]
+  history         TaskHistory[]
+  
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  
+  @@index([orderId, status])
+  @@index([machineId])
+  @@index([assignedTo])
+  @@map("task")
+}
+
+model TaskMaterial {
+  id              String   @id @default(cuid())
+  quantity        Float
+  
+  taskId          String
+  task            Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  
+  materialId      String
+  material        Material @relation(fields: [materialId], references: [id])
+  
+  createdAt       DateTime @default(now())
+  
+  @@unique([taskId, materialId])
+  @@map("task_material")
+}
+
+model TaskHistory {
+  id          String     @id @default(cuid())
+  fromStatus  TaskStatus
+  toStatus    TaskStatus
+  notes       String?
+  
+  taskId      String
+  task        Task       @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  
+  changedBy   String
+  user        User       @relation(fields: [changedBy], references: [id])
+  
+  createdAt   DateTime   @default(now())
+  
+  @@index([taskId])
+  @@map("task_history")
+}
+
+// ============================================================================
+// LOGISTICS & INVENTORY
+// ============================================================================
+
+enum MovementType {
+  IN      // Material received
+  OUT     // Material consumed
+  ADJUST  // Inventory adjustment
+  RETURN  // Material returned
+}
+
+model LogisticsMovement {
+  id          String       @id @default(cuid())
+  type        MovementType
+  quantity    Float
+  notes       String?
+  
+  materialId  String
+  material    Material     @relation(fields: [materialId], references: [id])
+  
+  createdBy   String
+  user        User         @relation(fields: [createdBy], references: [id])
+  
+  createdAt   DateTime     @default(now())
+  
+  @@index([materialId, createdAt])
+  @@map("logistics_movement")
+}
