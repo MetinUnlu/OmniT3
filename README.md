@@ -28,8 +28,8 @@ The easiest way to start is using the dev-optimized Docker setup:
 
 ```bash
 # Clone the repo
-git clone https://github.com/yourusername/omnit3.git
-cd omnit3
+https://github.com/MetinUnlu/OmniT3.git
+cd OmniT3
 
 # Start development server
 docker compose -f docker-compose.dev.yml up --build
