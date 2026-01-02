@@ -9,9 +9,9 @@ services:
         NEXT_PUBLIC_CLIENTVAR: "clientvar"
     ports:
       - "3000:3000"
-    image: templatestack:latest
+    image: omnit3:latest
     environment:
-      - DATABASE_URL=postgresql://postgres:password@db:5432/templatestack
+      - DATABASE_URL=postgresql://postgres:password@db:5432/omnit3
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
       - BETTER_AUTH_URL=${BETTER_AUTH_URL}
       - SUPER_USER_EMAIL=${SUPER_USER_EMAIL}
@@ -40,7 +40,7 @@ services:
       context: .
       dockerfile: Dockerfile
     environment:
-      - DATABASE_URL=postgresql://postgres:password@db:5432/templatestack
+      - DATABASE_URL=postgresql://postgres:password@db:5432/omnit3
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
       - BETTER_AUTH_URL=${BETTER_AUTH_URL}
       - SUPER_USER_EMAIL=${SUPER_USER_EMAIL}
@@ -58,13 +58,13 @@ services:
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=templatestack
+      - POSTGRES_DB=omnit3
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d templatestack"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d omnit3"]
       interval: 10s
       timeout: 5s
       retries: 5

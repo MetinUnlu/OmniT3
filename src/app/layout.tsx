@@ -8,7 +8,7 @@ import { TRPCReactProvider } from "~/trpc/react";
 import { Providers } from "./providers";
 
 export const metadata: Metadata = {
-  title: "TemplateStack - Modern Management",
+  title: "OmniT3 - Modern Management",
   description: "Industrial-grade management platform",
   icons: [{ rel: "icon", url: "/favicon.ico" }],
 };

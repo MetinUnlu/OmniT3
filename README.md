@@ -1,103 +1,62 @@
-# TemplateStack
+# OmniT3 
 
-A lightweight T3 Stack project for building modern web applications using Next.js, tRPC, Prisma, and Tailwind CSS.
+A robust, enterprise-ready T3 Stack implementation featuring multi-tenancy, role-based access control (RBAC), and containerized deployment workflows. Built with Next.js, tRPC, Prisma, and Tailwind CSS.
+
+## Key Features ✨
+
+- **Multi-Tenant System:** Built-in support for multiple organizations/companies.
+- **Role-Based Access Control (RBAC):**
+  - **Super User:** System-wide administration.
+  - **Admin:** Company-level management.
+  - **Member:** Standard user access.
+- **Advanced Auth:** Powered by BetterAuth with social login support and session management.
+- **Secure Tooling:** Prisma Studio deployed behind a protected Nginx reverse proxy (Basic Auth).
+- **Dockerized Workflow:**
+  - **Development:** Fast startup, hot-reloading (HMR), and file watching.
+  - **Production:** Optimized Dockerfile with multi-stage builds.
 
 ---
 
-## Quick start ⚡
+## Quick Start ⚡
 
-Prerequisites: Docker, Node.js, and a package manager (pnpm, npm, or yarn).
+### 1. Prerequisites
+- Docker & Docker Compose
+- Node.js & npm/pnpm/yarn
 
-- Start development with Docker Compose (recommended):
+### 2. Run Locally
+The easiest way to start is using the dev-optimized Docker setup:
 
 ```bash
+# Clone the repo
+git clone https://github.com/yourusername/omnit3.git
+cd omnit3
+
+# Start development server
 docker compose -f docker-compose.dev.yml up --build
 ```
 
-- Stop containers:
+- **App:** [http://localhost:3000](http://localhost:3000)
+- **Prisma Studio:** [http://localhost:5555](http://localhost:5555)
 
-```bash
-docker compose -f docker-compose.dev.yml down
-```
+### 3. Documentation
+For detailed guides, check the documentation files:
+
+- 🛠️ [**Development Guide**](./development.md) - Local setup, database management, and debugging.
+- 🚀 [**Deployment Guide**](./deployment.md) - Production build, Nginx protection, and environment configuration.
 
 ---
 
-## Tech stack 📦
+## Tech Stack 📦
 
-| Layer      | Technology                          | Purpose                                              |
-|------------|-------------------------------------|------------------------------------------------------|
-| Frontend   | Next.js 15 (App Router)             | UI framework with server components                  |
-| Styling    | Tailwind CSS, Mantine v8, @tabler/icons-react | Design system and utilities                          |
-| API        | tRPC                                | Typesafe, lightweight APIs                           |
-| Auth       | BetterAuth                          | Session handling and social logins                   |
-| Database   | PostgreSQL + Prisma                 | Production-ready relational DB with type-safe ORM    |
-| Real-time  | Socket.io (planned)                 | Real-time features (chat, notifications, etc.)       |
-| Async jobs | BullMQ + Redis (planned)            | Background jobs (emails, processing, etc.)           |
+| Layer | Technology | Purpose |
+|-------|------------|---------|
+| **Frontend** | Next.js 15 (App Router) | React Framework |
+| **Styling** | Tailwind CSS V4 | Utility-first CSS |
+| **API** | tRPC | End-to-end typesafe APIs |
+| **Database** | PostgreSQL + Prisma | Relational Data & ORM |
+| **Auth** | BetterAuth | Authentication & Sessions |
+| **Infra** | Docker & Nginx | Containerization & Proxy |
 
+## License
 
-## Database
-
-This project uses PostgreSQL with Prisma as the ORM. Docker Compose creates and manages the database by default in development.
-
-To inspect the database locally with Prisma Studio (PowerShell):
-
-```powershell
-$env:DATABASE_URL = "postgresql://postgres:password@localhost:5432/templatestack"; npx prisma studio
-```
-
-## Database Migration
-
-Docker Compose manages the database and migrations by default. If you need to run Prisma commands locally (optional), temporarily point DATABASE_URL to your local Postgres, run the migration, then restore the Docker URL.
-
-1. Update `.env` to use localhost:
-```env
-DATABASE_URL="postgresql://postgres:password@localhost:5432/templatestack"
-# DATABASE_URL="postgresql://postgres:password@db:5432/templatestack"
-```
-
-2. Run the migration:
-```bash
-npx prisma migrate dev --name add_multi_tenant_system
-```
-
-3. Revert `.env` for Docker:
-```env
-# DATABASE_URL="postgresql://postgres:password@localhost:5432/templatestack"
-DATABASE_URL="postgresql://postgres:password@db:5432/templatestack"
-```
-
-Note: This workflow is optional — Docker Compose handles the database in development.
-
-
-
-
-# T3 STACK NOTES:
-# Create T3 App
-
-This is a [T3 Stack](https://create.t3.gg/) project bootstrapped with `create-t3-app`.
-
-## What's next? How do I make an app with this?
-
-We try to keep this project as simple as possible, so you can start with just the scaffolding we set up for you, and add additional things later when they become necessary.
-
-If you are not familiar with the different technologies used in this project, please refer to the respective docs. If you still are in the wind, please join our [Discord](https://t3.gg/discord) and ask for help.
-
-- [Next.js](https://nextjs.org)
-- [NextAuth.js](https://next-auth.js.org)
-- [Prisma](https://prisma.io)
-- [Drizzle](https://orm.drizzle.team)
-- [Tailwind CSS](https://tailwindcss.com)
-- [tRPC](https://trpc.io)
-
-## Learn More
-
-To learn more about the [T3 Stack](https://create.t3.gg/), take a look at the following resources:
-
-- [Documentation](https://create.t3.gg/)
-- [Learn the T3 Stack](https://create.t3.gg/en/faq#what-learning-resources-are-currently-available) — Check out these awesome tutorials
-
-You can check out the [create-t3-app GitHub repository](https://github.com/t3-oss/create-t3-app) — your feedback and contributions are welcome!
-
-## How do I deploy this?
-
-Follow our deployment guides for [Vercel](https://create.t3.gg/en/deployment/vercel), [Netlify](https://create.t3.gg/en/deployment/netlify) and [Docker](https://create.t3.gg/en/deployment/docker) for more information.
+This project is open source and available under the [MIT License](LICENSE).
