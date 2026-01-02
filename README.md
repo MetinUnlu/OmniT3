@@ -1,6 +1,6 @@
 # OmniT3 
 
-A robust, enterprise-ready T3 Stack implementation featuring multi-tenancy, role-based access control (RBAC), and containerized deployment workflows. Built with Next.js, tRPC, Prisma, and Tailwind CSS.
+A robust, enterprise-ready T3 Stack implementation featuring multi-tenancy, role-based access control (RBAC), and containerized deployment workflows. Built with Next.js, tRPC, Prisma, and Tailwind CSS and Mantine UI.
 
 ## Key Features ✨
 
@@ -51,7 +51,7 @@ For detailed guides, check the documentation files:
 | Layer | Technology | Purpose |
 |-------|------------|---------|
 | **Frontend** | Next.js 15 (App Router) | React Framework |
-| **Styling** | Tailwind CSS V4 | Utility-first CSS |
+| **Styling** | Tailwind CSS V4, Mantine UI | Utility-first CSS |
 | **API** | tRPC | End-to-end typesafe APIs |
 | **Database** | PostgreSQL + Prisma | Relational Data & ORM |
 | **Auth** | BetterAuth | Authentication & Sessions |
