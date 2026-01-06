@@ -6,6 +6,7 @@ import "./src/env.js";
 
 /** @type {import("next").NextConfig} */
 const config = {
+  turbopack: {},
   output: "standalone",
   // Enable file watching in Docker
   webpack: (config, { isServer }) => {
