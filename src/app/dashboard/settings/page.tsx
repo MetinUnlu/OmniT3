@@ -31,18 +31,27 @@ export default async function SettingsPage() {
 
     // Get all companies for SUPER_USER
     const companies = user.role === "SUPER_USER"
-        ? await db.company.findMany({ orderBy: { name: "asc" } })
+        ? await db.company.findMany({ 
+            orderBy: { name: "asc" },
+            select: {
+                id: true,
+                name: true,
+                slug: true,
+                archivedAt: true,
+                deletedAt: true,
+            }
+        })
         : [];
 
     // Get users based on role
     const users = user.role === "SUPER_USER"
         ? await db.user.findMany({
-            include: { company: true },
+            include: { company: true, department: true },
             orderBy: { createdAt: "desc" }
         })
         : await db.user.findMany({
             where: { companyId: user.companyId },
-            include: { company: true },
+            include: { company: true, department: true },
             orderBy: { createdAt: "desc" }
         });
 
@@ -109,7 +118,8 @@ export default async function SettingsPage() {
                         name: u.name,
                         email: u.email,
                         role: u.role,
-                        company: u.company ? { name: u.company.name } : null
+                        company: u.company ? { name: u.company.name } : null,
+                        department: u.department ? { name: u.department.name } : null
                     }))}
                     initialDepartments={departments.map(d => ({
                         id: d.id,

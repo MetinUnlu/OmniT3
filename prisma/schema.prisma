@@ -45,6 +45,11 @@ model Company {
   id        String   @id @default(cuid())
   name      String
   slug      String   @unique // URL-friendly identifier
+  
+  // Soft delete support
+  archivedAt DateTime? // When company was archived (soft delete)
+  deletedAt  DateTime? // Scheduled permanent deletion date (30 days after archive)
+  
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -56,6 +61,7 @@ model Company {
   departments Department[]
 
   @@index([slug])
+  @@index([archivedAt])
   @@map("company")
 }
 

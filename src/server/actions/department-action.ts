@@ -147,3 +147,147 @@ export async function getDepartmentsAction(companyId?: string) {
         };
     }
 }
+
+interface UpdateDepartmentInput {
+    departmentId: string;
+    name: string;
+}
+
+export async function updateDepartmentAction(input: UpdateDepartmentInput) {
+    try {
+        // Get current session
+        const session = await getSession();
+        if (!session) {
+            return { success: false, error: "Unauthorized" };
+        }
+
+        // Get current user with role
+        const currentUser = await db.user.findUnique({
+            where: { id: session.user.id },
+        });
+
+        if (!currentUser) {
+            return { success: false, error: "User not found" };
+        }
+
+        // Check permissions
+        if (currentUser.role !== "SUPER_USER" && currentUser.role !== "ADMIN") {
+            return { success: false, error: "Insufficient permissions" };
+        }
+
+        // Get target department
+        const department = await db.department.findUnique({
+            where: { id: input.departmentId },
+            include: { company: true },
+        });
+
+        if (!department) {
+            return { success: false, error: "Department not found" };
+        }
+
+        // ADMIN can only update departments in their own company
+        if (currentUser.role === "ADMIN") {
+            if (!currentUser.companyId) {
+                return { success: false, error: "Admin must be assigned to a company" };
+            }
+            if (department.companyId !== currentUser.companyId) {
+                return { success: false, error: "Insufficient permissions" };
+            }
+        }
+
+        // Check if department with same name already exists in this company
+        const existingDepartment = await db.department.findFirst({
+            where: {
+                companyId: department.companyId,
+                name: input.name,
+                NOT: { id: input.departmentId },
+            },
+        });
+
+        if (existingDepartment) {
+            return { success: false, error: "Department with this name already exists in this company" };
+        }
+
+        // Update department
+        const updatedDepartment = await db.department.update({
+            where: { id: input.departmentId },
+            data: { name: input.name },
+            include: { company: true },
+        });
+
+        return {
+            success: true,
+            department: {
+                id: updatedDepartment.id,
+                name: updatedDepartment.name,
+                companyId: updatedDepartment.companyId,
+                companyName: updatedDepartment.company.name,
+            },
+        };
+    } catch (error) {
+        console.error("Error updating department:", error);
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : "Failed to update department",
+        };
+    }
+}
+
+export async function deleteDepartmentAction(departmentId: string) {
+    try {
+        // Get current session
+        const session = await getSession();
+        if (!session) {
+            return { success: false, error: "Unauthorized" };
+        }
+
+        // Get current user with role
+        const currentUser = await db.user.findUnique({
+            where: { id: session.user.id },
+        });
+
+        if (!currentUser) {
+            return { success: false, error: "User not found" };
+        }
+
+        // Check permissions
+        if (currentUser.role !== "SUPER_USER" && currentUser.role !== "ADMIN") {
+            return { success: false, error: "Insufficient permissions" };
+        }
+
+        // Get target department
+        const department = await db.department.findUnique({
+            where: { id: departmentId },
+        });
+
+        if (!department) {
+            return { success: false, error: "Department not found" };
+        }
+
+        // ADMIN can only delete departments in their own company
+        if (currentUser.role === "ADMIN") {
+            if (!currentUser.companyId) {
+                return { success: false, error: "Admin must be assigned to a company" };
+            }
+            if (department.companyId !== currentUser.companyId) {
+                return { success: false, error: "Insufficient permissions" };
+            }
+        }
+
+        // Delete department (users' departmentId will be set to null due to onDelete: SetNull)
+        await db.department.delete({
+            where: { id: departmentId },
+        });
+
+        return {
+            success: true,
+            message: "Department deleted successfully",
+        };
+    } catch (error) {
+        console.error("Error deleting department:", error);
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : "Failed to delete department",
+        };
+    }
+}

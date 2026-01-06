@@ -11,14 +11,16 @@ import {
     Stack,
     Group,
     Alert,
-    PasswordInput,
     Table,
     Badge,
+    ActionIcon,
+    Modal,
+    Tooltip,
 } from "@mantine/core";
-import { IconAlertCircle, IconCheck, IconUserPlus } from "@tabler/icons-react";
-import { createUserAction } from "~/server/actions/user-actions";
+import { IconAlertCircle, IconCheck, IconBuildingCommunity, IconEdit, IconTrash } from "@tabler/icons-react";
+import { createDepartmentAction, updateDepartmentAction, deleteDepartmentAction } from "~/server/actions/department-actions";
 
-interface AccountManagementProps {
+interface DepartmentManagementProps {
     user: {
         id: string;
         role: string;
@@ -26,13 +28,6 @@ interface AccountManagementProps {
         company: { id: string; name: string } | null;
     };
     companies: Array<{ id: string; name: string }>;
-    initialUsers: Array<{
-        id: string;
-        name: string;
-        email: string;
-        role: string;
-        company: { name: string } | null;
-    }>;
     initialDepartments: Array<{
         id: string;
         name: string;
@@ -41,39 +36,20 @@ interface AccountManagementProps {
     }>;
 }
 
-export function AccountManagement({ user, companies, initialUsers, initialDepartments }: AccountManagementProps) {
+export function DepartmentManagement({ user, companies, initialDepartments }: DepartmentManagementProps) {
     const [formData, setFormData] = useState({
         name: "",
-        email: "",
-        password: "",
-        role: "MEMBER",
         companyId: user.companyId || "",
-        departmentId: "",
     });
-    const [users, setUsers] = useState(initialUsers);
+    const [editData, setEditData] = useState<{
+        departmentId: string;
+        name: string;
+    } | null>(null);
+    const [deleteDepartmentId, setDeleteDepartmentId] = useState<string | null>(null);
+    const [departments, setDepartments] = useState(initialDepartments);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
-
-    // Filter departments based on selected company
-    const availableDepartments = formData.companyId
-        ? initialDepartments.filter(d => d.companyId === formData.companyId)
-        : user.companyId
-            ? initialDepartments.filter(d => d.companyId === user.companyId)
-            : [];
-
-    // Determine available roles based on user's role
-    const availableRoles =
-        user.role === "SUPER_USER"
-            ? [
-                { value: "SUPER_USER", label: "Super User" },
-                { value: "ADMIN", label: "Admin" },
-                { value: "MEMBER", label: "Member" },
-            ]
-            : [
-                { value: "ADMIN", label: "Admin" },
-                { value: "MEMBER", label: "Member" },
-            ];
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -82,43 +58,30 @@ export function AccountManagement({ user, companies, initialUsers, initialDepart
         setSuccess(null);
 
         try {
-            const result = await createUserAction({
+            const result = await createDepartmentAction({
                 name: formData.name,
-                email: formData.email,
-                password: formData.password,
-                role: formData.role as "SUPER_USER" | "ADMIN" | "MEMBER",
                 companyId: formData.companyId || undefined,
-                departmentId: formData.departmentId || undefined,
             });
 
-            if (result.success && result.user) {
-                setSuccess(`User ${formData.email} created successfully!`);
+            if (result.success && result.department) {
+                setSuccess(`Department "${formData.name}" created successfully!`);
 
-                // Add new user to the list
-                const newUser = {
-                    id: result.user.id,
-                    name: result.user.name,
-                    email: result.user.email,
-                    role: result.user.role,
-                    company: formData.companyId
-                        ? { name: companies.find(c => c.id === formData.companyId)?.name || "Unknown" }
-                        : user.role === "ADMIN" && user.company
-                            ? { name: user.company.name }
-                            : null
+                // Add new department to the list
+                const newDepartment = {
+                    id: result.department.id,
+                    name: result.department.name,
+                    companyId: result.department.companyId,
+                    companyName: result.department.companyName,
                 };
-                setUsers([newUser, ...users]);
+                setDepartments([newDepartment, ...departments]);
 
                 // Reset form
                 setFormData({
                     name: "",
-                    email: "",
-                    password: "",
-                    role: "MEMBER",
                     companyId: user.companyId || "",
-                    departmentId: "",
                 });
             } else {
-                setError(result.error || "Failed to create user");
+                setError(result.error || "Failed to create department");
             }
         } catch (err) {
             setError("An unexpected error occurred");
@@ -128,18 +91,126 @@ export function AccountManagement({ user, companies, initialUsers, initialDepart
         }
     };
 
+    const handleEdit = async () => {
+        if (!editData) return;
+        
+        setLoading(true);
+        setError(null);
+        setSuccess(null);
+
+        try {
+            const result = await updateDepartmentAction({
+                departmentId: editData.departmentId,
+                name: editData.name,
+            });
+
+            if (result.success && result.department) {
+                setSuccess("Department updated successfully!");
+                // Update department in the list
+                setDepartments(departments.map(d => 
+                    d.id === editData.departmentId 
+                        ? { ...d, name: editData.name }
+                        : d
+                ));
+                setEditData(null);
+            } else {
+                setError(result.error || "Failed to update department");
+            }
+        } catch (err) {
+            setError("An unexpected error occurred");
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleDelete = async () => {
+        if (!deleteDepartmentId) return;
+        
+        setLoading(true);
+        setError(null);
+        setSuccess(null);
+
+        try {
+            const result = await deleteDepartmentAction(deleteDepartmentId);
+
+            if (result.success) {
+                setSuccess("Department deleted successfully!");
+                // Remove department from the list
+                setDepartments(departments.filter(d => d.id !== deleteDepartmentId));
+                setDeleteDepartmentId(null);
+            } else {
+                setError(result.error || "Failed to delete department");
+                setDeleteDepartmentId(null);
+            }
+        } catch (err) {
+            setError("An unexpected error occurred");
+            console.error(err);
+            setDeleteDepartmentId(null);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
-        <Stack gap="xl">
+        <>
+            {/* Edit Department Modal */}
+            <Modal
+                opened={editData !== null}
+                onClose={() => setEditData(null)}
+                title="Edit Department"
+                size="sm"
+            >
+                {editData && (
+                    <Stack gap="md">
+                        <TextInput
+                            label="Department Name"
+                            value={editData.name}
+                            onChange={(e) => setEditData({ ...editData, name: e.currentTarget.value })}
+                        />
+                        <Group justify="flex-end" mt="md">
+                            <Button variant="default" onClick={() => setEditData(null)}>
+                                Cancel
+                            </Button>
+                            <Button onClick={handleEdit} loading={loading}>
+                                Save Changes
+                            </Button>
+                        </Group>
+                    </Stack>
+                )}
+            </Modal>
+
+            {/* Delete Confirmation Modal */}
+            <Modal
+                opened={deleteDepartmentId !== null}
+                onClose={() => setDeleteDepartmentId(null)}
+                title="Confirm Deletion"
+                size="sm"
+            >
+                <Stack gap="md">
+                    <Text>Are you sure you want to delete this department? Users in this department will have their department set to null.</Text>
+                    <Group justify="flex-end">
+                        <Button variant="default" onClick={() => setDeleteDepartmentId(null)}>
+                            Cancel
+                        </Button>
+                        <Button color="red" onClick={handleDelete} loading={loading}>
+                            Delete Department
+                        </Button>
+                    </Group>
+                </Stack>
+            </Modal>
+
+            <Stack gap="xl">
             <Card shadow="sm" padding="lg" radius="md">
                 <Stack gap="md">
                     <div>
                         <Title order={2} c="gray.9" mb="xs">
-                            Create New Account
+                            Create New Department
                         </Title>
                         <Text size="sm" c="gray.6">
                             {user.role === "SUPER_USER"
-                                ? "Create accounts with any role and assign to any company."
-                                : "Create Admin or Member accounts for your company."}
+                                ? "Create departments for any company in the system."
+                                : "Create departments for your company."}
                         </Text>
                     </div>
 
@@ -170,8 +241,8 @@ export function AccountManagement({ user, companies, initialUsers, initialDepart
                     <form onSubmit={handleSubmit}>
                         <Stack gap="md">
                             <TextInput
-                                label="Full Name"
-                                placeholder="John Doe"
+                                label="Department Name"
+                                placeholder="Engineering, Sales, HR, etc."
                                 required
                                 value={formData.name}
                                 onChange={(e) =>
@@ -179,48 +250,16 @@ export function AccountManagement({ user, companies, initialUsers, initialDepart
                                 }
                             />
 
-                            <TextInput
-                                label="Email"
-                                placeholder="john@example.com"
-                                type="email"
-                                required
-                                value={formData.email}
-                                onChange={(e) =>
-                                    setFormData({ ...formData, email: e.currentTarget.value })
-                                }
-                            />
-
-                            <PasswordInput
-                                label="Password"
-                                placeholder="Secure password"
-                                required
-                                value={formData.password}
-                                onChange={(e) =>
-                                    setFormData({ ...formData, password: e.currentTarget.value })
-                                }
-                            />
-
-                            <Select
-                                label="Role"
-                                placeholder="Select role"
-                                required
-                                data={availableRoles}
-                                value={formData.role}
-                                onChange={(value) =>
-                                    setFormData({ ...formData, role: value || "MEMBER" })
-                                }
-                            />
-
                             {user.role === "SUPER_USER" && (
                                 <Select
                                     label="Company"
-                                    placeholder="Select company (optional for Super User)"
+                                    placeholder="Select company"
+                                    required
                                     data={companies.map((c) => ({ value: c.id, label: c.name }))}
                                     value={formData.companyId}
-                                    onChange={(value) => {
-                                        setFormData({ ...formData, companyId: value || "", departmentId: "" });
-                                    }}
-                                    clearable
+                                    onChange={(value) =>
+                                        setFormData({ ...formData, companyId: value || "" })
+                                    }
                                 />
                             )}
 
@@ -229,31 +268,17 @@ export function AccountManagement({ user, companies, initialUsers, initialDepart
                                     label="Company"
                                     value={user.company.name}
                                     disabled
-                                    description="Users will be automatically assigned to your company"
-                                />
-                            )}
-
-                            {(formData.companyId || user.companyId) && (
-                                <Select
-                                    label="Department"
-                                    placeholder="Select department (optional)"
-                                    data={availableDepartments.map((d) => ({ value: d.id, label: d.name }))}
-                                    value={formData.departmentId}
-                                    onChange={(value) =>
-                                        setFormData({ ...formData, departmentId: value || "" })
-                                    }
-                                    clearable
-                                    description="Optionally assign user to a department"
+                                    description="Department will be created for your company"
                                 />
                             )}
 
                             <Group justify="flex-end" mt="md">
                                 <Button
                                     type="submit"
-                                    leftSection={<IconUserPlus size={16} />}
+                                    leftSection={<IconBuildingCommunity size={16} />}
                                     loading={loading}
                                 >
-                                    Create Account
+                                    Create Department
                                 </Button>
                             </Group>
                         </Stack>
@@ -265,48 +290,73 @@ export function AccountManagement({ user, companies, initialUsers, initialDepart
                 <Stack gap="md">
                     <div>
                         <Title order={2} c="gray.9" mb="xs">
-                            Existing Accounts
+                            Existing Departments
                         </Title>
                         <Text size="sm" c="gray.6">
-                            {users.length} {users.length === 1 ? "account" : "accounts"} found
+                            {departments.length} {departments.length === 1 ? "department" : "departments"} found
                         </Text>
                     </div>
 
-                    {users.length > 0 ? (
+                    {departments.length > 0 ? (
                         <Table striped highlightOnHover>
                             <Table.Thead>
                                 <Table.Tr>
-                                    <Table.Th>Name</Table.Th>
-                                    <Table.Th>Email</Table.Th>
-                                    <Table.Th>Role</Table.Th>
+                                    <Table.Th>Department Name</Table.Th>
                                     <Table.Th>Company</Table.Th>
+                                    <Table.Th style={{ width: 100, textAlign: "right" }}>Actions</Table.Th>
                                 </Table.Tr>
                             </Table.Thead>
                             <Table.Tbody>
-                                {users.map((u) => (
-                                    <Table.Tr key={u.id}>
-                                        <Table.Td>{u.name}</Table.Td>
-                                        <Table.Td>{u.email}</Table.Td>
+                                {departments.map((dept) => (
+                                    <Table.Tr key={dept.id}>
                                         <Table.Td>
-                                            <Badge
-                                                color={u.role === "SUPER_USER" ? "violet" : u.role === "ADMIN" ? "blue" : "gray"}
-                                                variant="light"
-                                            >
-                                                {u.role}
+                                            <Group gap="xs">
+                                                <IconBuildingCommunity size={16} color="gray" />
+                                                <Text fw={500}>{dept.name}</Text>
+                                            </Group>
+                                        </Table.Td>
+                                        <Table.Td>
+                                            <Badge color="blue" variant="light">
+                                                {dept.companyName}
                                             </Badge>
                                         </Table.Td>
-                                        <Table.Td>{u.company?.name || "-"}</Table.Td>
+                                        <Table.Td>
+                                            <Group gap="xs" justify="flex-end">
+                                                <Tooltip label="Edit department">
+                                                    <ActionIcon
+                                                        variant="subtle"
+                                                        color="blue"
+                                                        onClick={() => setEditData({
+                                                            departmentId: dept.id,
+                                                            name: dept.name,
+                                                        })}
+                                                    >
+                                                        <IconEdit size={18} />
+                                                    </ActionIcon>
+                                                </Tooltip>
+                                                <Tooltip label="Delete department">
+                                                    <ActionIcon
+                                                        variant="subtle"
+                                                        color="red"
+                                                        onClick={() => setDeleteDepartmentId(dept.id)}
+                                                    >
+                                                        <IconTrash size={18} />
+                                                    </ActionIcon>
+                                                </Tooltip>
+                                            </Group>
+                                        </Table.Td>
                                     </Table.Tr>
                                 ))}
                             </Table.Tbody>
                         </Table>
                     ) : (
                         <Text c="gray.6" ta="center" py="xl">
-                            No accounts found.
+                            No departments found. Create one above.
                         </Text>
                     )}
                 </Stack>
             </Card>
-        </Stack>
+            </Stack>
+        </>
     );
 }
