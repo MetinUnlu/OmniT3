@@ -46,6 +46,20 @@ export default async function SettingsPage() {
             orderBy: { createdAt: "desc" }
         });
 
+    // Get departments based on role
+    const departments = user.role === "SUPER_USER"
+        ? await db.department.findMany({
+            include: { company: true },
+            orderBy: [{ company: { name: "asc" } }, { name: "asc" }]
+        })
+        : user.companyId
+            ? await db.department.findMany({
+                where: { companyId: user.companyId },
+                include: { company: true },
+                orderBy: { name: "asc" }
+            })
+            : [];
+
     return (
         <div style={{ minHeight: "100vh", backgroundColor: "#f8f9fa" }}>
             {/* Header */}
@@ -96,6 +110,12 @@ export default async function SettingsPage() {
                         email: u.email,
                         role: u.role,
                         company: u.company ? { name: u.company.name } : null
+                    }))}
+                    initialDepartments={departments.map(d => ({
+                        id: d.id,
+                        name: d.name,
+                        companyId: d.companyId,
+                        companyName: d.company.name
                     }))}
                 />
             </Container>

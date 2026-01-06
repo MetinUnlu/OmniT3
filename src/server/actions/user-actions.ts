@@ -10,6 +10,7 @@ interface CreateUserInput {
     password: string;
     role: "SUPER_USER" | "ADMIN" | "MEMBER";
     companyId?: string;
+    departmentId?: string;
 }
 
 export async function createUserAction(input: CreateUserInput) {
@@ -58,6 +59,20 @@ export async function createUserAction(input: CreateUserInput) {
             }
         }
 
+        // Validate department exists if provided and belongs to the company
+        if (input.departmentId) {
+            const department = await db.department.findUnique({
+                where: { id: input.departmentId },
+            });
+            if (!department) {
+                return { success: false, error: "Invalid department selection" };
+            }
+            // Ensure department belongs to the selected company (prevent cross-tenant access)
+            if (companyId && department.companyId !== companyId) {
+                return { success: false, error: "Invalid department selection" };
+            }
+        }
+
         // Check if user already exists
         const existingUser = await db.user.findUnique({
             where: { email: input.email },
@@ -86,6 +101,7 @@ export async function createUserAction(input: CreateUserInput) {
             data: {
                 role: input.role,
                 companyId: companyId || null,
+                departmentId: input.departmentId || null,
             },
         });
 

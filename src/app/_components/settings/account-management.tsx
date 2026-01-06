@@ -14,9 +14,12 @@ import {
     PasswordInput,
     Table,
     Badge,
+    ActionIcon,
+    Modal,
+    Tooltip,
 } from "@mantine/core";
-import { IconAlertCircle, IconCheck, IconUserPlus } from "@tabler/icons-react";
-import { createUserAction } from "~/server/actions/user-actions";
+import { IconAlertCircle, IconCheck, IconUserPlus, IconEdit, IconTrash, IconUser, IconKey } from "@tabler/icons-react";
+import { createUserAction, updateUserAction, deleteUserAction, changePasswordAction } from "~/server/actions/user-actions";
 
 interface AccountManagementProps {
     user: {
@@ -32,21 +35,53 @@ interface AccountManagementProps {
         email: string;
         role: string;
         company: { name: string } | null;
+        department: { name: string } | null;
+    }>;
+    initialDepartments: Array<{
+        id: string;
+        name: string;
+        companyId: string;
+        companyName: string;
     }>;
 }
 
-export function AccountManagement({ user, companies, initialUsers }: AccountManagementProps) {
+export function AccountManagement({ user, companies, initialUsers, initialDepartments }: AccountManagementProps) {
     const [formData, setFormData] = useState({
         name: "",
         email: "",
         password: "",
         role: "MEMBER",
         companyId: user.companyId || "",
+        departmentId: "",
+    });
+    const [editData, setEditData] = useState<{
+        userId: string;
+        name: string;
+        role: string;
+        departmentId: string;
+    } | null>(null);
+    const [deleteUserId, setDeleteUserId] = useState<string | null>(null);
+    const [passwordData, setPasswordData] = useState<{
+        userId: string;
+        userName: string;
+        isOwnPassword: boolean;
+    } | null>(null);
+    const [passwordForm, setPasswordForm] = useState({
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: "",
     });
     const [users, setUsers] = useState(initialUsers);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
+
+    // Filter departments based on selected company
+    const availableDepartments = formData.companyId
+        ? initialDepartments.filter(d => d.companyId === formData.companyId)
+        : user.companyId
+            ? initialDepartments.filter(d => d.companyId === user.companyId)
+            : [];
 
     // Determine available roles based on user's role
     const availableRoles =
@@ -74,6 +109,7 @@ export function AccountManagement({ user, companies, initialUsers }: AccountMana
                 password: formData.password,
                 role: formData.role as "SUPER_USER" | "ADMIN" | "MEMBER",
                 companyId: formData.companyId || undefined,
+                departmentId: formData.departmentId || undefined,
             });
 
             if (result.success && result.user) {
@@ -89,7 +125,10 @@ export function AccountManagement({ user, companies, initialUsers }: AccountMana
                         ? { name: companies.find(c => c.id === formData.companyId)?.name || "Unknown" }
                         : user.role === "ADMIN" && user.company
                             ? { name: user.company.name }
-                            : null
+                            : null,
+                    department: formData.departmentId
+                        ? { name: availableDepartments.find(d => d.id === formData.departmentId)?.name || "Unknown" }
+                        : null
                 };
                 setUsers([newUser, ...users]);
 
@@ -100,6 +139,7 @@ export function AccountManagement({ user, companies, initialUsers }: AccountMana
                     password: "",
                     role: "MEMBER",
                     companyId: user.companyId || "",
+                    departmentId: "",
                 });
             } else {
                 setError(result.error || "Failed to create user");
@@ -112,8 +152,233 @@ export function AccountManagement({ user, companies, initialUsers }: AccountMana
         }
     };
 
+    const handleEdit = async () => {
+        if (!editData) return;
+        
+        setLoading(true);
+        setError(null);
+        setSuccess(null);
+
+        try {
+            const result = await updateUserAction({
+                userId: editData.userId,
+                name: editData.name,
+                role: editData.role as "SUPER_USER" | "ADMIN" | "MEMBER",
+                departmentId: editData.departmentId || null,
+            });
+
+            if (result.success) {
+                setSuccess("User updated successfully!");
+                // Update user in the list
+                setUsers(users.map(u => 
+                    u.id === editData.userId 
+                        ? { ...u, name: editData.name, role: editData.role }
+                        : u
+                ));
+                setEditData(null);
+            } else {
+                setError(result.error || "Failed to update user");
+            }
+        } catch (err) {
+            setError("An unexpected error occurred");
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleDelete = async () => {
+        if (!deleteUserId) return;
+        
+        setLoading(true);
+        setError(null);
+        setSuccess(null);
+
+        try {
+            const result = await deleteUserAction(deleteUserId);
+
+            if (result.success) {
+                setSuccess("User deleted successfully!");
+                // Remove user from the list
+                setUsers(users.filter(u => u.id !== deleteUserId));
+                setDeleteUserId(null);
+            } else {
+                setError(result.error || "Failed to delete user");
+                setDeleteUserId(null);
+            }
+        } catch (err) {
+            setError("An unexpected error occurred");
+            console.error(err);
+            setDeleteUserId(null);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handlePasswordChange = async () => {
+        if (!passwordData) return;
+        
+        setLoading(true);
+        setError(null);
+        setSuccess(null);
+
+        // Validate passwords match
+        if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+            setError("New passwords do not match");
+            setLoading(false);
+            return;
+        }
+
+        try {
+            const result = await changePasswordAction({
+                userId: passwordData.userId,
+                currentPassword: passwordData.isOwnPassword ? passwordForm.currentPassword : undefined,
+                newPassword: passwordForm.newPassword,
+            });
+
+            if (result.success) {
+                setSuccess(result.message || "Password changed successfully!");
+                setPasswordData(null);
+                setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+            } else {
+                setError(result.error || "Failed to change password");
+            }
+        } catch (err) {
+            setError("An unexpected error occurred");
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const canChangePassword = (targetUser: typeof users[0]) => {
+        // Users can always change their own password
+        if (targetUser.id === user.id) return true;
+        
+        // SUPER_USER can change anyone's password
+        if (user.role === "SUPER_USER") return true;
+        
+        // ADMIN can change MEMBER passwords in their company
+        if (user.role === "ADMIN" && targetUser.role === "MEMBER") return true;
+        
+        return false;
+    };
+
     return (
-        <Stack gap="xl">
+        <>
+            {/* Edit User Modal */}
+            <Modal
+                opened={editData !== null}
+                onClose={() => setEditData(null)}
+                title="Edit User"
+                size="md"
+            >
+                {editData && (
+                    <Stack gap="md">
+                        <TextInput
+                            label="Name"
+                            value={editData.name}
+                            onChange={(e) => setEditData({ ...editData, name: e.currentTarget.value })}
+                        />
+                        <Select
+                            label="Role"
+                            data={availableRoles}
+                            value={editData.role}
+                            onChange={(value) => setEditData({ ...editData, role: value || "MEMBER" })}
+                        />
+                        {availableDepartments.length > 0 && (
+                            <Select
+                                label="Department"
+                                placeholder="Select department (optional)"
+                                data={availableDepartments.map((d) => ({ value: d.id, label: d.name }))}
+                                value={editData.departmentId}
+                                onChange={(value) => setEditData({ ...editData, departmentId: value || "" })}
+                                clearable
+                            />
+                        )}
+                        <Group justify="flex-end" mt="md">
+                            <Button variant="default" onClick={() => setEditData(null)}>
+                                Cancel
+                            </Button>
+                            <Button onClick={handleEdit} loading={loading}>
+                                Save Changes
+                            </Button>
+                        </Group>
+                    </Stack>
+                )}
+            </Modal>
+
+            {/* Delete Confirmation Modal */}
+            <Modal
+                opened={deleteUserId !== null}
+                onClose={() => setDeleteUserId(null)}
+                title="Confirm Deletion"
+                size="sm"
+            >
+                <Stack gap="md">
+                    <Text>Are you sure you want to delete this user? This action cannot be undone.</Text>
+                    <Group justify="flex-end">
+                        <Button variant="default" onClick={() => setDeleteUserId(null)}>
+                            Cancel
+                        </Button>
+                        <Button color="red" onClick={handleDelete} loading={loading}>
+                            Delete User
+                        </Button>
+                    </Group>
+                </Stack>
+            </Modal>
+
+            {/* Change Password Modal */}
+            <Modal
+                opened={passwordData !== null}
+                onClose={() => {
+                    setPasswordData(null);
+                    setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+                }}
+                title={passwordData?.isOwnPassword ? "Change Your Password" : `Change Password for ${passwordData?.userName}`}
+                size="md"
+            >
+                {passwordData && (
+                    <Stack gap="md">
+                        {passwordData.isOwnPassword && (
+                            <PasswordInput
+                                label="Current Password"
+                                placeholder="Enter your current password"
+                                required
+                                value={passwordForm.currentPassword}
+                                onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.currentTarget.value })}
+                            />
+                        )}
+                        <PasswordInput
+                            label="New Password"
+                            placeholder="Enter new password (min 8 characters)"
+                            required
+                            value={passwordForm.newPassword}
+                            onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.currentTarget.value })}
+                        />
+                        <PasswordInput
+                            label="Confirm New Password"
+                            placeholder="Re-enter new password"
+                            required
+                            value={passwordForm.confirmPassword}
+                            onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.currentTarget.value })}
+                        />
+                        <Group justify="flex-end" mt="md">
+                            <Button variant="default" onClick={() => {
+                                setPasswordData(null);
+                                setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+                            }}>
+                                Cancel
+                            </Button>
+                            <Button onClick={handlePasswordChange} loading={loading}>
+                                Change Password
+                            </Button>
+                        </Group>
+                    </Stack>
+                )}
+            </Modal>
+
+            <Stack gap="xl">
             <Card shadow="sm" padding="lg" radius="md">
                 <Stack gap="md">
                     <div>
@@ -201,9 +466,9 @@ export function AccountManagement({ user, companies, initialUsers }: AccountMana
                                     placeholder="Select company (optional for Super User)"
                                     data={companies.map((c) => ({ value: c.id, label: c.name }))}
                                     value={formData.companyId}
-                                    onChange={(value) =>
-                                        setFormData({ ...formData, companyId: value || "" })
-                                    }
+                                    onChange={(value) => {
+                                        setFormData({ ...formData, companyId: value || "", departmentId: "" });
+                                    }}
                                     clearable
                                 />
                             )}
@@ -214,6 +479,20 @@ export function AccountManagement({ user, companies, initialUsers }: AccountMana
                                     value={user.company.name}
                                     disabled
                                     description="Users will be automatically assigned to your company"
+                                />
+                            )}
+
+                            {(formData.companyId || user.companyId) && (
+                                <Select
+                                    label="Department"
+                                    placeholder="Select department (optional)"
+                                    data={availableDepartments.map((d) => ({ value: d.id, label: d.name }))}
+                                    value={formData.departmentId}
+                                    onChange={(value) =>
+                                        setFormData({ ...formData, departmentId: value || "" })
+                                    }
+                                    clearable
+                                    description="Optionally assign user to a department"
                                 />
                             )}
 
@@ -249,7 +528,9 @@ export function AccountManagement({ user, companies, initialUsers }: AccountMana
                                     <Table.Th>Name</Table.Th>
                                     <Table.Th>Email</Table.Th>
                                     <Table.Th>Role</Table.Th>
-                                    <Table.Th>Company</Table.Th>
+                                    {user.role === "SUPER_USER" && <Table.Th>Company</Table.Th>}
+                                    <Table.Th>Department</Table.Th>
+                                    <Table.Th style={{ width: 100, textAlign: "right" }}>Actions</Table.Th>
                                 </Table.Tr>
                             </Table.Thead>
                             <Table.Tbody>
@@ -265,7 +546,60 @@ export function AccountManagement({ user, companies, initialUsers }: AccountMana
                                                 {u.role}
                                             </Badge>
                                         </Table.Td>
-                                        <Table.Td>{u.company?.name || "-"}</Table.Td>
+                                        {user.role === "SUPER_USER" && <Table.Td>{u.company?.name || "-"}</Table.Td>}
+                                        <Table.Td>
+                                            {u.department ? (
+                                                <Badge color="cyan" variant="light">
+                                                    {u.department.name}
+                                                </Badge>
+                                            ) : (
+                                                <Text c="dimmed" size="sm">-</Text>
+                                            )}
+                                        </Table.Td>
+                                        <Table.Td>
+                                            <Group gap="xs" justify="flex-end">
+                                                <Tooltip label="Edit user">
+                                                    <ActionIcon
+                                                        variant="subtle"
+                                                        color="blue"
+                                                        onClick={() => setEditData({
+                                                            userId: u.id,
+                                                            name: u.name,
+                                                            role: u.role,
+                                                            departmentId: "",
+                                                        })}
+                                                    >
+                                                        <IconEdit size={18} />
+                                                    </ActionIcon>
+                                                </Tooltip>
+                                                {canChangePassword(u) && (
+                                                    <Tooltip label="Change password">
+                                                        <ActionIcon
+                                                            variant="subtle"
+                                                            color="violet"
+                                                            onClick={() => setPasswordData({
+                                                                userId: u.id,
+                                                                userName: u.name,
+                                                                isOwnPassword: u.id === user.id,
+                                                            })}
+                                                        >
+                                                            <IconKey size={18} />
+                                                        </ActionIcon>
+                                                    </Tooltip>
+                                                )}
+                                                {u.id !== user.id && (
+                                                    <Tooltip label="Delete user">
+                                                        <ActionIcon
+                                                            variant="subtle"
+                                                            color="red"
+                                                            onClick={() => setDeleteUserId(u.id)}
+                                                        >
+                                                            <IconTrash size={18} />
+                                                        </ActionIcon>
+                                                    </Tooltip>
+                                                )}
+                                            </Group>
+                                        </Table.Td>
                                     </Table.Tr>
                                 ))}
                             </Table.Tbody>
@@ -277,6 +611,7 @@ export function AccountManagement({ user, companies, initialUsers }: AccountMana
                     )}
                 </Stack>
             </Card>
-        </Stack>
+            </Stack>
+        </>
     );
 }
