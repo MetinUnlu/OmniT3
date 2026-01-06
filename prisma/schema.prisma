@@ -16,10 +16,29 @@ datasource db {
 // USER ROLES & COMPANY MANAGEMENT
 // ============================================================================
 
+
 enum UserRole {
   SUPER_USER // Platform admin - access to everything, no company required
   ADMIN      // Company admin - full company access
   MEMBER     // Company member - limited access
+}
+
+// ============================================================================
+// DEPARTMENT MANAGEMENT
+// ============================================================================
+
+model Department {
+  id        String   @id @default(cuid())
+  name      String
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  users     User[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@map("department")
 }
 
 model Company {
@@ -28,13 +47,14 @@ model Company {
   slug      String   @unique // URL-friendly identifier
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   // Relations
   users     User[]
   machines  Machine[]
   orders    Order[]
   materials Material[]
-  
+  departments Department[]
+
   @@index([slug])
   @@map("company")
 }
@@ -50,26 +70,31 @@ model User {
   emailVerified Boolean   @default(false)
   image         String?
   role          UserRole  @default(MEMBER)
-  
+
   // Multi-tenancy (optional for SUPER_USER)
   companyId     String?
   company       Company?  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  
+
+  // Department (optional)
+  departmentId  String?
+  department    Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
-  
+
   // Auth relations
   sessions      Session[]
   accounts      Account[]
-  
+
   // Activity relations
   assignedTasks       Task[]        @relation("AssignedWorker")
   createdOrders       Order[]       @relation("OrderCreator")
   taskStatusChanges   TaskHistory[]
   logisticsUpdates    LogisticsMovement[]
-  
+
   @@unique([email])
   @@index([companyId, role])
+  @@index([departmentId])
   @@map("user")
 }
 
